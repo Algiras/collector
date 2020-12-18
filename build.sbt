@@ -7,6 +7,8 @@ val FlywayVersion = "7.3.1"
 val DoobieVersion = "0.9.0"
 val CryptoBitsVersion = "1.3" 
 
+enablePlugins(JavaAppPackaging)
+
 lazy val root = (project in file("."))
   .settings(
     organization := "com.ak",
