@@ -1,0 +1,14 @@
+version: "3"
+services:
+  db:
+    image: "fintrace/postgres-uuid"
+    environment:
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_USER: "${DB_USERNAME}"
+      POSTGRES_DB: "${POSTGRES_DB}"
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - collector_db:/var/lib/postgresql/data
+volumes:
+  collector_db:
