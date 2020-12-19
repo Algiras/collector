@@ -7,6 +7,7 @@ import doobie.implicits._
 import doobie.postgres.implicits._
 import cats.syntax.functor._
 import cats.effect.Sync
+import fs2.Stream
 
 class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
 
@@ -46,6 +47,10 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
   def findByLink(link: String): F[Option[Record]] = sql"""
       SELECT id, name, link, price FROM records WHERE link = $link
     """.query[Record].option.transact(transactor)
+
+  def all: Stream[F, Record] = sql"""
+    SELECT id, name, link, price FROM records
+  """.query[Record].stream.transact[F](transactor)
 }
 
 object RecordRepository {

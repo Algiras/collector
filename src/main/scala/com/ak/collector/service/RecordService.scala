@@ -12,6 +12,10 @@ import io.circe.generic.auto._
 import org.http4s.{AuthedRoutes, EntityDecoder, EntityEncoder}
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
+import fs2._
+import org.http4s.MediaType
+import org.http4s.Charset
+import org.http4s.headers.`Content-Type`
 
 class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sDsl[F] {
   implicit val recordEncoder: EntityEncoder[F, Record] = jsonEncoderOf[F, Record]
@@ -31,7 +35,12 @@ class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sD
         recordOpt <- repository.findByLink(link)
         response  <- result(recordOpt)
       } yield response
-      
+    case GET -> Root / "data.csv" as _ =>
+      Ok(
+        (Stream[F, String]("id\tlink\tname\tprice") ++ repository.all.map(
+          record => s"${record.id}\t${record.link}\t${record.name}\t${record.price}")
+        ).intersperse("\n").through(text.utf8Encode)
+      ).map(_.withContentType(`Content-Type`(MediaType.text.csv, Some(Charset.`UTF-8`))))
     case usrReq @ POST -> Root as _ =>
       for {
         reqBody  <- usrReq.req.as[RecordRequest]
