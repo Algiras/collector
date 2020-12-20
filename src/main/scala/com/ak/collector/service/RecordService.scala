@@ -37,8 +37,8 @@ class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sD
       } yield response
     case GET -> Root / "data.csv" as _ =>
       Ok(
-        (Stream[F, String]("id\tlink\tname\tprice") ++ repository.all.map(
-          record => s"${record.id}\t${record.link}\t${record.name}\t${record.price}")
+        (Stream[F, String]("id\tlink\tname\tprice\tnote") ++ repository.all.map(
+          record => s"${record.id}\t${record.link}\t${record.name}\t${record.price}\t${record.note}")
         ).intersperse("\n").through(text.utf8Encode)
       ).map(_.withContentType(`Content-Type`(MediaType.text.csv, Some(Charset.`UTF-8`))))
     case usrReq @ POST -> Root as _ =>

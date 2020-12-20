@@ -1,0 +1,2 @@
+ALTER TABLE records 
+    ADD COLUMN "note" TEXT DEFAULT '';
