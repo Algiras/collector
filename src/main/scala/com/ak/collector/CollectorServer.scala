@@ -13,6 +13,8 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware.Logger
 
 import scala.concurrent.ExecutionContext.global
+import com.ak.collector.repository.GroupRepository
+import com.ak.collector.service.GroupService
 
 object CollectorServer {
   private case class Runtime[F[_]](config: ServiceConfig, transactor: HikariTransactor[F])
@@ -28,11 +30,15 @@ object CollectorServer {
     for {
       runtime <- Stream.resource(setupRuntime[F])
       recordRepository = new RecordRepository[F](runtime.transactor)
-      recordService    = new RecordService[F](recordRepository)
-      authService      = new AuthService[F](runtime.config.auth)
+      groupRepository  = new GroupRepository[F](runtime.transactor)
+
+      recordService = new RecordService[F](recordRepository)
+      groupService  = new GroupService[F](groupRepository)
+      authService   = new AuthService[F](runtime.config.auth)
 
       httpApp = Router(
         "/records" -> authService.authMiddleware(recordService.routes),
+        "/groups"  -> authService.authMiddleware(groupService.routes),
         "/login"   -> authService.loginRoutes,
         "/me"      -> authService.meRoutes
       ).orNotFound

@@ -4,20 +4,17 @@ import cats.effect.Sync
 import cats.syntax.flatMap._
 import cats.syntax.functor._
 import com.ak.collector.models.User
-import com.ak.collector.repository.RecordRepository
-import com.ak.collector.repository.RecordRepository._
 import io.circe.generic.auto._
 import org.http4s.{AuthedRoutes, EntityDecoder, EntityEncoder}
 import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
-import fs2._
-import org.http4s.MediaType
-import org.http4s.Charset
-import org.http4s.headers.`Content-Type`
+import com.ak.collector.repository.GroupRepository
+import com.ak.collector.repository.GroupRepository.Group
+import com.ak.collector.repository.GroupRepository.GroupRequest
 
-class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sDsl[F] {
-  implicit val recordEncoder: EntityEncoder[F, Record] = jsonEncoderOf[F, Record]
-  implicit val recordRequestDecoder: EntityDecoder[F, RecordRequest] = jsonOf[F, RecordRequest]
+class GroupService[F[_]: Sync](repository: GroupRepository[F]) extends Http4sDsl[F] {
+  implicit val groupEncoder: EntityEncoder[F, Group] = jsonEncoderOf[F, Group]
+  implicit val groupRequestDecoder: EntityDecoder[F, GroupRequest] = jsonOf[F, GroupRequest]
 
   val routes: AuthedRoutes[User, F] = AuthedRoutes.of[User, F] {
     case GET -> Root / UUIDVar(id) as _ =>
@@ -25,26 +22,16 @@ class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sD
         recordOpt <- repository.getById(id)
         response  <- result(recordOpt)
       } yield response
-    case GET -> Root / "byLink" :? LinkQueryParamMatcher(link) as _ =>
-      for {
-        recordOpt <- repository.findByLink(link)
-        response  <- result(recordOpt)
-      } yield response
-    case GET -> Root / UUIDVar(groupId) / "data.csv" as _ =>
-      Ok(
-        (Stream[F, String]("id\tlink\tname\tprice\tnote") ++ repository.recordsByGroup(groupId).map(
-          record => s"${record.id}\t${record.link}\t${record.name}\t${record.price}\t${record.note}")
-        ).intersperse("\n").through(text.utf8Encode)
-      ).map(_.withContentType(`Content-Type`(MediaType.text.csv, Some(Charset.`UTF-8`))))
+    case GET -> Root as _ => Ok(repository.all.compile.toList)
     case usrReq @ POST -> Root as _ =>
       for {
-        reqBody  <- usrReq.req.as[RecordRequest]
+        reqBody  <- usrReq.req.as[GroupRequest]
         id       <- repository.create(reqBody)
         response <- Ok(id.toString())
       } yield response
     case usrReq @ PUT -> Root / UUIDVar(id) as _ =>
       for {
-        reqBody   <- usrReq.req.as[RecordRequest]
+        reqBody   <- usrReq.req.as[GroupRequest]
         recordOpt <- repository.update(id, reqBody)
         response  <- result(recordOpt.map(_.toString()))
       } yield response
