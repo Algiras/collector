@@ -45,10 +45,10 @@ class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sD
               case "id" => s"${record.id}"
               case "link" => record.link
               case "name" => record.name
-              case "price" => record.price
+              case "price" => s"${record.price}"
               case "note" => record.note
               case other => customInputMap.get(other).getOrElse("")
-            }).mkString("\t")
+            }).map(txt => txt.replace("\n", ", ")).mkString("\t")
           })
         ).intersperse("\n").through(text.utf8Encode)
       ).map(_.withContentType(`Content-Type`(MediaType.text.csv, Some(Charset.`UTF-8`))))
