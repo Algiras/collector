@@ -8,14 +8,28 @@ import doobie.implicits._
 import doobie.postgres.implicits._
 import doobie.util.transactor.Transactor
 import fs2.Stream
-import RecordRepository._
 import cats.implicits._
+import io.circe.parser._
+import io.circe.syntax._
+import io.circe._
+import ShapesDerivation._
+import io.circe.generic.extras.semiauto.deriveConfiguredCodec
+import RecordRepository._
 
 class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
+  implicit val customInputMeta: Meta[List[CustomInput]] = Meta[Array[Byte]].imap(bytes => {
+    val json   = parse(new String(bytes)).valueOr(throw _)
+    val result = json.as[List[CustomInput]].valueOr(throw _)
+
+    result
+
+  })(
+    _.asJson.noSpaces.getBytes()
+  )
 
   def create(record: RecordRequest) = (for {
     recordId <- sql"""
-      INSERT INTO records (name, link, price, note) VALUES (${record.name}, ${record.link}, ${record.price}, ${record.note})
+      INSERT INTO records (name, link, price, note, custom_inputs) VALUES (${record.name}, ${record.link}, ${record.price}, ${record.note}, ${record.customInputs})
     """.update.withUniqueGeneratedKeys[UUID]("id")
     _        <- record.groups.map(RecordGroupRepository.create(recordId, _)).sequence_
   } yield recordId).transact(transactor)
@@ -32,7 +46,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
   def update(id: UUID, record: RecordRequest): F[Option[UUID]] = (for {
     currentRecord <- getByIdOp(id).map(_.get)
     update <- sql"""
-      UPDATE records SET name = ${record.name}, link = ${record.link}, price = ${record.price}, note = ${record.note}
+      UPDATE records SET name = ${record.name}, link = ${record.link}, price = ${record.price}, note = ${record.note}, custom_inputs = ${record.customInputs}
       WHERE id = $id
     """.update.run
       .map(affectedRows => {
@@ -61,7 +75,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
   def getByIdOp(id: UUID) =
     (
       sql"""
-      SELECT id, name, link, price, note FROM records WHERE id = $id
+      SELECT id, name, link, price, note, custom_inputs FROM records WHERE id = $id
     """.query[DBRecord].option,
       RecordGroupRepository.selectGroupsByRecordId(id)
     ).mapN((record, groups) => record.map(Record(_, groups)))
@@ -70,7 +84,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
 
   def findByLink(link: String): F[Option[Record]] = (for {
     resultOpt <- sql"""
-      SELECT id, name, link, price, note FROM records WHERE link = $link
+      SELECT id, name, link, price, note, custom_inputs FROM records WHERE link = $link
     """.query[DBRecord].option
     groups <- resultOpt match {
       case Some(result) => RecordGroupRepository.selectGroupsByRecordId(result.id)
@@ -79,21 +93,45 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
   } yield resultOpt.map(Record(_, groups)))
     .transact(transactor)
 
+  def recordsHeadersByGroup(groupId: UUID): F[List[String]] = sql"""
+    SELECT custom_inputs FROM records JOIN record_group ON records.id = record_group.record_id
+      WHERE record_group.group_id = ${groupId}""".query[List[CustomInput]].stream
+    .compile.fold(Set.empty[String])(_ ++ _.map(_.name).toSet)
+    .transact[F](transactor)
+    .map(fields => List("id", "name", "link", "price", "note") ++ fields.toList)
+
   def recordsByGroup(groupId: UUID): Stream[F, DBRecord] = sql"""
-    SELECT id, name, link, price, note FROM records JOIN record_group ON records.id = record_group.record_id
+    SELECT id, name, link, price, note, custom_inputs FROM records JOIN record_group ON records.id = record_group.record_id
       WHERE record_group.group_id = ${groupId}
   """.query[DBRecord].stream.transact[F](transactor)
 }
 
 object RecordRepository {
-  case class RecordRequest(name: String, link: String, price: Int, note: String, groups: List[UUID])
+  sealed trait CustomInput {
+    def name: String;
+    def value: String;
+  }
+
+  case class Input(name: String, value: String) extends CustomInput
+
+  implicit val customInputCodec: Codec[CustomInput]           = deriveConfiguredCodec[CustomInput]
+
+  case class RecordRequest(
+      name: String,
+      link: String,
+      price: Int,
+      note: String,
+      groups: List[UUID],
+      customInputs: List[CustomInput]
+  )
 
   case class DBRecord(
       id: UUID,
       name: String,
       link: String,
       price: Int,
-      note: String
+      note: String,
+      customInputs: List[CustomInput]
   )
   case class Record(
       id: UUID,
@@ -101,6 +139,7 @@ object RecordRepository {
       link: String,
       price: Int,
       note: String,
+      customInputs: List[CustomInput],
       groups: List[UUID]
   )
 
@@ -111,6 +150,7 @@ object RecordRepository {
       link = dbRecord.link,
       price = dbRecord.price,
       note = dbRecord.note,
+      customInputs = dbRecord.customInputs,
       groups = groups
     )
   }

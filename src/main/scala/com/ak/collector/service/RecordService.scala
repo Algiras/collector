@@ -16,6 +16,8 @@ import org.http4s.Charset
 import org.http4s.headers.`Content-Type`
 
 class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sDsl[F] {
+  implicit val customInputEncoder: EntityEncoder[F, CustomInput] = jsonEncoderOf[F, CustomInput]
+  implicit val customInputDecoder: EntityDecoder[F, CustomInput] = jsonOf[F, CustomInput]
   implicit val recordEncoder: EntityEncoder[F, Record] = jsonEncoderOf[F, Record]
   implicit val recordRequestDecoder: EntityDecoder[F, RecordRequest] = jsonOf[F, RecordRequest]
 
@@ -30,12 +32,27 @@ class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sD
         recordOpt <- repository.findByLink(link)
         response  <- result(recordOpt)
       } yield response
-    case GET -> Root / UUIDVar(groupId) / "data.csv" as _ =>
-      Ok(
-        (Stream[F, String]("id\tlink\tname\tprice\tnote") ++ repository.recordsByGroup(groupId).map(
-          record => s"${record.id}\t${record.link}\t${record.name}\t${record.price}\t${record.note}")
+    case GET -> Root / UUIDVar(groupId) / "data.csv" as _ => for {
+      headers <- repository.recordsHeadersByGroup(groupId)
+      resp <- Ok(
+        (Stream[F, String](headers.mkString("\t")) ++ repository.recordsByGroup(groupId).map(
+          record => {
+            val customInputMap: Map[String, String] = record.customInputs.foldLeft(List.empty[(String, String)])(
+              (values, field) => (field.name -> field.value) :: values
+            ).toMap
+
+            headers.map(value => value match {
+              case "id" => s"${record.id}"
+              case "link" => record.link
+              case "name" => record.name
+              case "price" => record.price
+              case "note" => record.note
+              case other => customInputMap.get(other).getOrElse("")
+            }).mkString("\t")
+          })
         ).intersperse("\n").through(text.utf8Encode)
       ).map(_.withContentType(`Content-Type`(MediaType.text.csv, Some(Charset.`UTF-8`))))
+    } yield  resp
     case usrReq @ POST -> Root as _ =>
       for {
         reqBody  <- usrReq.req.as[RecordRequest]
