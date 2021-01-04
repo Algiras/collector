@@ -15,6 +15,7 @@ import org.http4s.server.middleware.Logger
 import scala.concurrent.ExecutionContext.global
 import com.ak.collector.repository.GroupRepository
 import com.ak.collector.service.GroupService
+import com.ak.collector.repository.UserRepository
 
 object CollectorServer {
   private case class Runtime[F[_]](config: ServiceConfig, transactor: HikariTransactor[F])
@@ -31,16 +32,18 @@ object CollectorServer {
       runtime <- Stream.resource(setupRuntime[F])
       recordRepository = new RecordRepository[F](runtime.transactor)
       groupRepository  = new GroupRepository[F](runtime.transactor)
+      userRepository = new UserRepository[F](runtime.transactor)
 
       recordService = new RecordService[F](recordRepository)
       groupService  = new GroupService[F](groupRepository)
-      authService   = new AuthService[F](runtime.config.auth)
+      authService  <- Stream.eval(AuthService[F](runtime.config.auth, userRepository))
 
       httpApp = Router(
         "/records" -> authService.authMiddleware(recordService.routes),
         "/groups"  -> authService.authMiddleware(groupService.routes),
+        "/admin"      -> authService.adminRoutes,
         "/login"   -> authService.loginRoutes,
-        "/me"      -> authService.meRoutes
+        "/me"      -> authService.meRoutes,
       ).orNotFound
 
       finalHttpApp = Logger.httpApp(logHeaders = true, logBody = true)(httpApp)
