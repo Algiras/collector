@@ -6,6 +6,7 @@ val PueConfigVersion  = "0.14.0"
 val FlywayVersion     = "7.3.1"
 val DoobieVersion     = "0.9.0"
 val CryptoBitsVersion = "1.3"
+val BCryptVersion     = "4.1"
 
 enablePlugins(JavaAppPackaging)
 
@@ -28,6 +29,7 @@ lazy val root = (project in file("."))
       "io.circe"              %% "circe-parser"           % CirceVersion,
       "io.circe"              %% "circe-shapes"           % CirceVersion,
       "io.circe"              %% "circe-generic-extras"   % CirceVersion,
+      "com.github.t3hnar"     %% "scala-bcrypt"           % BCryptVersion,
       "com.github.pureconfig" %% "pureconfig"             % PueConfigVersion,
       "com.github.pureconfig" %% "pureconfig-cats-effect" % PueConfigVersion,
       "org.reactormonk"       %% "cryptobits"             % CryptoBitsVersion,
