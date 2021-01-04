@@ -3,7 +3,7 @@ package com.ak.collector.service
 import cats.effect.Sync
 import cats.syntax.flatMap._
 import cats.syntax.functor._
-import com.ak.collector.models.User
+import com.ak.collector.repository.UserRepository.User
 import com.ak.collector.repository.RecordRepository
 import com.ak.collector.repository.RecordRepository._
 import io.circe.generic.auto._
