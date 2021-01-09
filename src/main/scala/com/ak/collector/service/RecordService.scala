@@ -14,6 +14,7 @@ import fs2._
 import org.http4s.MediaType
 import org.http4s.Charset
 import org.http4s.headers.`Content-Type`
+import com.ak.collector.repository.CustomInput
 
 class RecordService[F[_]: Sync](repository: RecordRepository[F]) extends Http4sDsl[F] {
   implicit val customInputEncoder: EntityEncoder[F, CustomInput] = jsonEncoderOf[F, CustomInput]

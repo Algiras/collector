@@ -9,24 +9,9 @@ import doobie.postgres.implicits._
 import doobie.util.transactor.Transactor
 import fs2.Stream
 import cats.implicits._
-import io.circe.parser._
-import io.circe.syntax._
-import io.circe._
-import ShapesDerivation._
-import io.circe.generic.extras.semiauto.deriveConfiguredCodec
 import RecordRepository._
-
+import CustomInput._
 class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
-  implicit val customInputMeta: Meta[List[CustomInput]] = Meta[Array[Byte]].imap(bytes => {
-    val json   = parse(new String(bytes)).valueOr(throw _)
-    val result = json.as[List[CustomInput]].valueOr(throw _)
-
-    result
-
-  })(
-    _.asJson.noSpaces.getBytes()
-  )
-
   def create(record: RecordRequest) = (for {
     recordId <- sql"""
       INSERT INTO records (name, link, price, note, custom_inputs) VALUES (${record.name}, ${record.link}, ${record.price}, ${record.note}, ${record.customInputs})
@@ -107,14 +92,6 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
 }
 
 object RecordRepository {
-  sealed trait CustomInput {
-    def name: String;
-    def value: String;
-  }
-
-  case class Input(name: String, value: String) extends CustomInput
-
-  implicit val customInputCodec: Codec[CustomInput]           = deriveConfiguredCodec[CustomInput]
 
   case class RecordRequest(
       name: String,

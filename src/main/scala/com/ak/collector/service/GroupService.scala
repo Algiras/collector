@@ -11,8 +11,11 @@ import com.ak.collector.repository.GroupRepository
 import com.ak.collector.repository.GroupRepository.Group
 import com.ak.collector.repository.GroupRepository.GroupRequest
 import com.ak.collector.repository.UserRepository.User
+import com.ak.collector.repository.CustomInput
 
 class GroupService[F[_]: Sync](repository: GroupRepository[F]) extends Http4sDsl[F] {
+  implicit val customInputEncoder: EntityEncoder[F, CustomInput] = jsonEncoderOf[F, CustomInput]
+  implicit val customInputDecoder: EntityDecoder[F, CustomInput] = jsonOf[F, CustomInput]
   implicit val groupEncoder: EntityEncoder[F, Group] = jsonEncoderOf[F, Group]
   implicit val groupRequestDecoder: EntityDecoder[F, GroupRequest] = jsonOf[F, GroupRequest]
 

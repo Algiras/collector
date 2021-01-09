@@ -22,7 +22,7 @@ class AuthService[F[_]: Sync: Timer](authKey: String, userRepository: UserReposi
   implicit val recordRequestDecoder: EntityDecoder[F, LoginRequest] = jsonOf[F, LoginRequest]
   implicit val userRequestDecoder: EntityDecoder[F, UserRequest]    = jsonOf[F, UserRequest]
 
-  implicit val userDecoder: EntityEncoder[F, User]                  = jsonEncoderOf[F, User]
+  implicit val userDecoder: EntityEncoder[F, User] = jsonEncoderOf[F, User]
 
   private val logInRequest: Kleisli[F, Request[F], Response[F]] = Kleisli({ request =>
     for {
@@ -76,9 +76,10 @@ class AuthService[F[_]: Sync: Timer](authKey: String, userRepository: UserReposi
     case req @ POST -> Root / "user" / "create" as user =>
       for {
         body <- req.req.as[UserRequest]
-        resp <- if(user.role == Role.Admin) {
-          userRepository.create(body).flatMap(Ok(_))
-        } else Sync[F].pure(Response[F](Unauthorized))
+        resp <-
+          if (user.role == Role.Admin) {
+            userRepository.create(body).flatMap(Ok(_))
+          } else Sync[F].pure(Response[F](Unauthorized))
       } yield resp
   }
 
@@ -86,9 +87,10 @@ class AuthService[F[_]: Sync: Timer](authKey: String, userRepository: UserReposi
     case req @ POST -> Root / "user" / "create" as user =>
       for {
         body <- req.req.as[UserRequest]
-        resp <- if(user.role == Role.Admin) {
-          userRepository.create(body).flatMap(Ok(_))
-        } else Sync[F].pure(Response[F](Unauthorized))
+        resp <-
+          if (user.role == Role.Admin) {
+            userRepository.create(body).flatMap(Ok(_))
+          } else Sync[F].pure(Response[F](Unauthorized))
       } yield resp
   }
 
@@ -96,11 +98,11 @@ class AuthService[F[_]: Sync: Timer](authKey: String, userRepository: UserReposi
     Kleisli(req => OptionT.liftF[F, Response[F]](Forbidden(req.context)))
 
   val key            = PrivateKey(scala.io.Codec.toUTF8(authKey))
-  val crypto         = CryptoBits(key)
+  val crypto      = CryptoBits(key)
   val authMiddleware = AuthMiddleware(authUser, onFailure)
   val loginRoutes: HttpRoutes[F] =
     HttpRoutes((req: Request[F]) => OptionT.liftF(logInRequest.run(req)))
-  val meRoutes = authMiddleware(meRoute)
+  val meRoutes    = authMiddleware(meRoute)
   val adminRoutes = authMiddleware(adminRoute)
 
   case class LoginRequest(email: String, password: String)
