@@ -34,8 +34,8 @@ object CollectorServer {
       groupRepository  = new GroupRepository[F](runtime.transactor)
       userRepository = new UserRepository[F](runtime.transactor)
 
-      recordService = new RecordService[F](recordRepository)
-      groupService  = new GroupService[F](groupRepository)
+      recordService = new RecordService[F](recordRepository.store(_))
+      groupService  = new GroupService[F](groupRepository.store(_))
       authService  <- Stream.eval(AuthService[F](runtime.config.auth, userRepository))
 
       httpApp = Router(
