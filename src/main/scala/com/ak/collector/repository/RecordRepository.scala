@@ -27,7 +27,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
   def store(user: User) = new RecordStore[F] {
     def create(record: RecordRequest): F[UUID] = (for {
       recordId <- sql"""
-        INSERT INTO records (name, link, price, note, custom_inputs, author) VALUES (${record.name}, ${record.link}, ${record.price}, ${record.note}, ${record.customInputs}, ${user.id})
+        INSERT INTO records (name, link, note, custom_inputs, author) VALUES (${record.name}, ${record.link}, ${record.note}, ${record.customInputs}, ${user.id})
       """.update.withUniqueGeneratedKeys[UUID]("id")
       _ <- record.groups.map(RecordGroupRepository.create(recordId, _)).sequence_
     } yield recordId).transact(transactor)
@@ -44,7 +44,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
     def update(id: UUID, record: RecordRequest): F[Option[UUID]] = (for {
       currentRecord <- getByIdOp(id).map(_.get)
       update <- sql"""
-        UPDATE records SET name = ${record.name}, link = ${record.link}, price = ${record.price}, note = ${record.note}, custom_inputs = ${record.customInputs}
+        UPDATE records SET name = ${record.name}, link = ${record.link}, note = ${record.note}, custom_inputs = ${record.customInputs}
         WHERE id = $id AND (author = ${user.id} OR author IS NULL)
       """.update.run
         .map(affectedRows => {
@@ -73,7 +73,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
     private def getByIdOp(id: UUID) =
       (
         sql"""
-        SELECT id, name, link, price, note, custom_inputs FROM records WHERE id = $id AND (author = ${user.id} OR author IS NULL)
+        SELECT id, name, link, note, custom_inputs FROM records WHERE id = $id AND (author = ${user.id} OR author IS NULL)
       """.query[DBRecord].option,
         RecordGroupRepository.selectGroupsByRecordId(id)
       ).mapN((record, groups) => record.map(Record(_, groups)))
@@ -82,7 +82,7 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
 
     def findByLink(link: String): F[Option[Record]] = (for {
       resultOpt <- sql"""
-        SELECT id, name, link, price, note, custom_inputs FROM records WHERE link = $link AND (author = ${user.id} OR author IS NULL)
+        SELECT id, name, link, note, custom_inputs FROM records WHERE link = $link AND (author = ${user.id} OR author IS NULL)
       """.query[DBRecord].option
       groups <- resultOpt match {
         case Some(result) => RecordGroupRepository.selectGroupsByRecordId(result.id)
@@ -99,10 +99,10 @@ class RecordRepository[F[_]: Sync](transactor: Transactor[F]) {
       .compile
       .fold(Set.empty[String])(_ ++ _.map(_.name).toSet)
       .transact[F](transactor)
-      .map(fields => List("id", "name", "link", "price", "note") ++ fields.toList)
+      .map(fields => List("id", "name", "link", "note") ++ fields.toList)
 
     def recordsByGroup(groupId: UUID): Stream[F, DBRecord] = sql"""
-      SELECT id, name, link, price, note, custom_inputs FROM records JOIN record_group ON records.id = record_group.record_id
+      SELECT id, name, link, note, custom_inputs FROM records JOIN record_group ON records.id = record_group.record_id
         WHERE record_group.group_id = ${groupId} AND (author = ${user.id} OR author IS NULL)
     """.query[DBRecord].stream.transact[F](transactor)
   }
@@ -113,7 +113,6 @@ object RecordRepository {
   case class RecordRequest(
       name: String,
       link: String,
-      price: Int,
       note: String,
       groups: List[UUID],
       customInputs: List[CustomInput]
@@ -123,7 +122,6 @@ object RecordRepository {
       id: UUID,
       name: String,
       link: String,
-      price: Int,
       note: String,
       customInputs: List[CustomInput]
   )
@@ -131,7 +129,6 @@ object RecordRepository {
       id: UUID,
       name: String,
       link: String,
-      price: Int,
       note: String,
       customInputs: List[CustomInput],
       groups: List[UUID]
@@ -142,7 +139,6 @@ object RecordRepository {
       id = dbRecord.id,
       name = dbRecord.name,
       link = dbRecord.link,
-      price = dbRecord.price,
       note = dbRecord.note,
       customInputs = dbRecord.customInputs,
       groups = groups

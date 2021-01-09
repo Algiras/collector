@@ -53,7 +53,6 @@ class RecordService[F[_]: Sync](getRecordStore: User => RecordStore[F]) extends 
                     case "id"    => s"${record.id}"
                     case "link"  => record.link
                     case "name"  => record.name
-                    case "price" => s"${record.price}"
                     case "note"  => record.note
                     case other   => customInputMap.get(other).getOrElse("")
                   }
